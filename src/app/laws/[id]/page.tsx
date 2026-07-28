@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { typeLabels, statusLabels, statusColors } from "@/lib/constants";
+import { ScrollToArticle } from "./scroll-to-article";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,8 @@ export default async function LawDetailPage({
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
+      <ScrollToArticle />
+
       {/* 返回链接 */}
       <Link
         href="/laws"
@@ -62,7 +65,8 @@ export default async function LawDetailPage({
         {law.articles.map((article) => (
           <div
             key={article.id}
-            className="border-l-[3px] border-l-[var(--gold)] bg-[var(--card)] rounded-r-lg px-4 py-3"
+            id={`article-${article.id}`}
+            className="border-l-[3px] border-l-[var(--gold)] bg-[var(--card)] rounded-r-lg px-4 py-3 scroll-mt-20 transition-colors"
           >
             {article.chapter && (
               <p className="text-xs text-text-secondary mb-1">{article.chapter}</p>
