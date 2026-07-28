@@ -1,0 +1,1 @@
+"@echo off\r\ncd /d %~dp0..\r\nset DATABASE_URL=postgresql://postgres:postgres@localhost:5432/chineselaw\r\nset REDIS_URL=redis://localhost:6379\r\nnpx tsx scripts/import-laws.ts\r\n"
