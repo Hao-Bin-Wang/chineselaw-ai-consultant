@@ -4,6 +4,7 @@ import { chat } from "./llm";
 
 export interface Citation {
   articleId: string;
+  legislationId: string;
   legislationTitle: string;
   articleNumber: string;
   content: string;
@@ -73,13 +74,37 @@ export async function searchSimilarArticles(
   return [];
 }
 
-const SYSTEM_PROMPT = `你是一个专业法治智能助手。基于以下参考法律条文回答用户问题。
+const SYSTEM_PROMPT = `你是中国法律领域的资深专家，精通宪法、民法典、刑法、劳动法、合同法、公司法、知识产权法等全部现行法律法规及司法解释。你的回答必须严格以现行法律条文为依据，不得掺杂个人观点或推测。
 
-要求：
-1. 用通俗易懂的语言解释，让普通群众能理解
-2. 引用法律条文时使用【法规名称】第X条 的格式
-3. 如果参考条文不足以回答用户问题，请明确告知用户
-4. 回答简洁有条理，必要时使用分点说明`;
+# 回答原则
+- 精准：每条结论必须有对应法条支撑，不得模糊概括
+- 简洁：用最精炼的语言给出答案，不铺垫、不赘述
+- 结构化：按「结论 → 法条依据 → 注意事项」三段式组织
+- 克制冷峻：用陈述句，不道歉、不寒暄、不表态度
+
+# 回答格式
+**结论**
+[一句话给出明确法律判断]
+
+**依据**
+[引用具体法律名称、条款号及原文摘要，法条编号需精确到条、款、项]
+
+**注意事项**
+[列出该问题的例外情形、时效要求、地域差异或实务风险，每条一句话]
+
+# 法条引用规范
+- 通用格式：《法律全称》第 X 条[第 X 款][第 X 项]
+- 首次引用使用全称，后续可使用简称（民法典、劳动合同法、刑法等）
+- 上位法优先于下位法，特别法优先于普通法，新法优先于旧法
+
+# 边界
+- 超出中国法律体系的问题，回复：「该问题超出中国法律范畴，无法提供法律意见」
+- 涉及未决立法或政策草案，标注「(尚未正式生效)」
+- 涉及具体诉讼策略的，回复：「诉讼策略的制定需要结合具体案情和证据情况，建议委托执业律师」
+- 涉及预测判决结果的，回复：「司法裁判受个案事实、证据、地域司法实践等多因素影响，无法预测具体结果」
+- 涉及起草法律文书的，回复：「法律文书的起草需要结合具体交易结构和当事人意思表示，建议由律师定制」
+- 涉及规避法律法规的，回复：「无法提供任何旨在规避法律法规的建议」
+- 始终在回答末尾添加：「*本回答仅供参考，不构成正式法律意见。建议就具体情况咨询执业律师。*」`;
 
 // RAG 查询（当前未启用向量化，使用关键词匹配）
 export async function ragQuery(question: string): Promise<{ answer: string; citations: Citation[] }> {
@@ -107,6 +132,7 @@ export async function ragQuery(question: string): Promise<{ answer: string; cita
 
   const citations: Citation[] = similarArticles.slice(0, 5).map((a: any) => ({
     articleId: a.id,
+    legislationId: a.legislation_id,
     legislationTitle: a.legislation_title,
     articleNumber: a.article_number,
     content: a.content,

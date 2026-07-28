@@ -36,16 +36,16 @@ export function Navbar() {
   }
 
   return (
-    <nav className="border-b h-16 flex items-center px-6 gap-2 bg-background">
-      <h1 className="font-bold text-lg mr-4 shrink-0">⚖️ 法治智能问答</h1>
+    <nav className="border-b border-[var(--border)] h-16 flex items-center px-6 gap-2 bg-[var(--surface)]">
+      <h1 className="font-display text-lg mr-4 shrink-0 text-[var(--gold)]">⚖️ 法治智能问答</h1>
       {links.map((link) => (
         <button
           key={link.href}
           onClick={() => router.push(link.href)}
           className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
             pathname === link.href
-              ? "bg-primary text-primary-foreground"
-              : "hover:bg-muted"
+              ? "bg-[var(--gold)] text-[var(--primary-foreground)]"
+              : "text-text-secondary hover:text-foreground hover:border-[var(--gold)]"
           }`}
         >
           {link.label}
@@ -54,7 +54,7 @@ export function Navbar() {
       <div className="flex-1" />
       <button
         onClick={logout}
-        className="px-3 py-1.5 rounded-md text-sm border hover:bg-muted transition-colors"
+        className="px-3 py-1.5 rounded-md text-sm border border-[var(--border)] text-text-secondary hover:text-foreground hover:border-[var(--gold)] transition-colors"
       >
         退出
       </button>

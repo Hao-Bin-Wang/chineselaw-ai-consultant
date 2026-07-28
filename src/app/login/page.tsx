@@ -49,44 +49,44 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="w-full max-w-md p-8 bg-white rounded-xl shadow-sm border">
-        <h1 className="text-2xl font-bold text-center mb-6">⚖️ 法治智能问答</h1>
+    <div className="min-h-screen flex items-center justify-center bg-[var(--background)]">
+      <div className="w-full max-w-md p-8 bg-[var(--card)] rounded-xl border border-[var(--border)]">
+        <h1 className="text-2xl font-display text-center mb-6 text-[var(--gold)]">⚖️ 法治智能问答</h1>
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">账号</label>
+            <label className="block text-sm font-medium text-foreground mb-1">账号</label>
             <input
               placeholder="请输入账号"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full h-10 rounded-md border border-[var(--input)] bg-[var(--surface)] px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[var(--gold)]"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">密码</label>
+            <label className="block text-sm font-medium text-foreground mb-1">密码</label>
             <input
               type="password"
               placeholder="请输入密码"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
-              className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full h-10 rounded-md border border-[var(--input)] bg-[var(--surface)] px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[var(--gold)]"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">验证码</label>
+            <label className="block text-sm font-medium text-foreground mb-1">验证码</label>
             <div className="flex gap-2">
               <input
                 placeholder="输入验证码"
                 value={captchaCode}
                 onChange={(e) => setCaptchaCode(e.target.value)}
-                className="flex-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className="flex-1 h-10 rounded-md border border-[var(--input)] bg-[var(--surface)] px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[var(--gold)]"
               />
               <div
                 dangerouslySetInnerHTML={{ __html: captchaSvg }}
                 onClick={fetchCaptcha}
-                className="cursor-pointer border rounded-md p-1 hover:bg-muted shrink-0"
+                className="cursor-pointer border border-[var(--border)] rounded-md p-1 hover:bg-[var(--muted)] shrink-0"
               />
             </div>
           </div>
@@ -96,12 +96,12 @@ export default function LoginPage() {
           <button
             onClick={submit}
             disabled={loading}
-            className="w-full h-10 bg-primary text-primary-foreground rounded-md text-sm font-medium disabled:opacity-50 hover:bg-primary/90 transition-colors"
+            className="w-full h-10 bg-[var(--gold)] text-[var(--primary-foreground)] rounded-md text-sm font-medium disabled:opacity-50 hover:brightness-110 transition-all"
           >
             {loading ? "处理中..." : mode === "login" ? "登录" : "注册"}
           </button>
 
-          <p className="text-sm text-center text-muted-foreground">
+          <p className="text-sm text-center text-text-secondary">
             {mode === "login" ? "没有账号？" : "已有账号？"}
             <button
               onClick={() => {
@@ -109,7 +109,7 @@ export default function LoginPage() {
                 setError("");
                 fetchCaptcha();
               }}
-              className="text-primary hover:underline ml-1"
+              className="text-[var(--gold)] hover:underline ml-1"
             >
               {mode === "login" ? "注册" : "登录"}
             </button>
