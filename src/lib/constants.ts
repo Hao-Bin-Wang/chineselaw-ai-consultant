@@ -12,8 +12,9 @@ export const statusLabels: Record<string, string> = {
   repealed: "已废止",
 };
 
-export const statusColors: Record<string, string> = {
-  effective: "text-[var(--gold)]",
-  amended: "text-amber-500",
-  repealed: "text-red-500",
+/** 效力状态对应的徽标类名（见 globals.css） */
+export const statusBadgeClass: Record<string, string> = {
+  effective: "badge-success",
+  amended: "badge-warning",
+  repealed: "badge-danger",
 };

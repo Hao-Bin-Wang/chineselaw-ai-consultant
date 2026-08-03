@@ -5,14 +5,17 @@
  * 2. 注册/登录
  * 3. AI 问答 (RAG)
  * 4. 法条检索
+ *
+ * 依赖 .env 中的 DATABASE_URL / REDIS_URL / ARK_API_KEY / ARK_BASE_URL / JWT_SECRET
  */
 
-// 环境变量必须在所有 import 之前设置（ESM import 提升）
-process.env.DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/chineselaw";
-process.env.REDIS_URL = "redis://localhost:6379";
-process.env.DEEPSEEK_API_KEY = "sk-your-deepseek-api-key";
-process.env.VOLCENGINE_API_KEY = "ark-your-volcengine-api-key";
-process.env.JWT_SECRET = "legal-ai-consultant-jwt-secret";
+// 环境变量必须在所有 import 之前加载（ESM import 提升）
+import "dotenv/config";
+
+if (!process.env.ARK_API_KEY) {
+  console.error("缺少环境变量 ARK_API_KEY，请检查 .env 文件");
+  process.exit(1);
+}
 
 async function main() {
   // 动态导入确保环境变量已设置
@@ -76,7 +79,7 @@ async function main() {
 
   // ===== 测试 4: Embedding API =====
   console.log("\n" + "=".repeat(50));
-  console.log("Test 4: SiliconFlow Embedding API");
+  console.log("Test 4: ARK Embedding API");
   try {
     const emb = await embed("劳动合同法规定了什么内容");
     console.log(`  - 向量维度: ${emb.length}`);
@@ -88,19 +91,19 @@ async function main() {
     results.push("FAIL");
   }
 
-  // ===== 测试 5: DeepSeek Chat API =====
+  // ===== 测试 5: ARK Chat API =====
   console.log("\n" + "=".repeat(50));
-  console.log("Test 5: DeepSeek AI 问答");
+  console.log("Test 5: ARK AI 问答");
   try {
     const answer = await chat([
       { role: "system", content: "你是法律助手，用一句话回答。" },
       { role: "user", content: "劳动合同法保护什么权益？" },
     ]);
     console.log(`  - 回答: ${answer.slice(0, 100)}...`);
-    console.log(`  - ✅ DeepSeek API 正常`);
+    console.log(`  - ✅ ARK API 正常`);
     results.push("PASS");
   } catch (err: any) {
-    console.log(`  - ❌ DeepSeek API 失败: ${err.message}`);
+    console.log(`  - ❌ ARK API 失败: ${err.message}`);
     results.push("FAIL");
   }
 
@@ -124,7 +127,7 @@ async function main() {
   // ===== 汇总 =====
   console.log("\n" + "=".repeat(50));
   console.log("结果汇总:");
-  const labels = ["Captcha", "Auth", "Laws DB", "Embedding", "DeepSeek", "RAG"];
+  const labels = ["Captcha", "Auth", "Laws DB", "Embedding", "ARK Chat", "RAG"];
   for (let i = 0; i < results.length; i++) {
     console.log(`  ${results[i] === "PASS" ? "✅" : "❌"} ${labels[i]}: ${results[i]}`);
   }

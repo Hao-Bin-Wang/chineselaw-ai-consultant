@@ -1,18 +1,20 @@
 import type { Metadata } from "next";
-import { Noto_Serif_SC, Inter } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import { Navbar } from "@/components/Navbar";
-
-const notoSerif = Noto_Serif_SC({
-  subsets: ["latin"],
-  weight: ["400", "700"],
-  variable: "--font-noto-serif",
-  display: "swap",
-});
+import { ThemeProvider, themeInitScript } from "@/components/ThemeProvider";
+import { Sidebar, MobileBar } from "@/components/Sidebar";
 
 const inter = Inter({
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
   variable: "--font-inter",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-mono-jb",
   display: "swap",
 });
 
@@ -23,14 +25,22 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="zh-CN">
-      <body className={`${notoSerif.variable} ${inter.variable} antialiased`}>
-        <Navbar />
-        <main>{children}</main>
+    <html lang="zh-CN" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
+      <body className={`${inter.variable} ${jetbrainsMono.variable}`}>
+        <ThemeProvider>
+          <div className="flex min-h-screen">
+            <Sidebar />
+            <div className="flex-1 min-w-0 flex flex-col">
+              <MobileBar />
+              <main className="flex-1 min-h-0">{children}</main>
+            </div>
+          </div>
+        </ThemeProvider>
       </body>
     </html>
   );

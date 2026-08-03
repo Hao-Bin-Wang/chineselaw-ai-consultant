@@ -1,6 +1,7 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
+  darkMode: "class",
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -9,48 +10,54 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "var(--background)",
-        foreground: "var(--foreground)",
-        surface: "var(--surface)",
-        primary: {
-          DEFAULT: "var(--primary)",
-          foreground: "var(--primary-foreground)",
-        },
-        muted: {
-          DEFAULT: "var(--muted)",
-          foreground: "var(--muted-foreground)",
-        },
-        card: {
-          DEFAULT: "var(--card)",
-          foreground: "var(--card-foreground)",
-        },
+        bg: "var(--bg)",
+        "bg-subtle": "var(--bg-subtle)",
+        sidebar: "var(--sidebar)",
+        "sidebar-hover": "var(--sidebar-hover)",
+        "sidebar-active": "var(--sidebar-active)",
+        card: "var(--card)",
+        "card-hover": "var(--card-hover)",
+        elevated: "var(--elevated)",
+        fg: "var(--fg)",
+        "fg-secondary": "var(--fg-secondary)",
+        "fg-tertiary": "var(--fg-tertiary)",
+        "fg-disabled": "var(--fg-disabled)",
         border: "var(--border)",
-        input: "var(--input)",
-        ring: "var(--ring)",
-        gold: "var(--gold)",
-        "text-primary": "var(--text-primary)",
-        "text-secondary": "var(--text-secondary)",
-        "citation-bg": "var(--citation-bg)",
-        accent: {
-          DEFAULT: "var(--accent)",
-          foreground: "var(--accent-foreground)",
-        },
-        destructive: {
-          DEFAULT: "var(--destructive)",
-          foreground: "var(--destructive-foreground)",
-        },
+        "border-strong": "var(--border-strong)",
+        "input-border": "var(--input-border)",
+        accent: "var(--accent)",
+        "accent-hover": "var(--accent-hover)",
+        "accent-fg": "var(--accent-fg)",
+        "accent-subtle": "var(--accent-subtle)",
+        success: "var(--success)",
+        "success-subtle": "var(--success-subtle)",
+        warning: "var(--warning)",
+        "warning-subtle": "var(--warning-subtle)",
+        danger: "var(--danger)",
+        "danger-subtle": "var(--danger-subtle)",
       },
       fontFamily: {
-        display: ['"Noto Serif SC"', "serif"],
-        sans: ["Inter", "system-ui", "sans-serif"],
+        sans: ["var(--font-sans)"],
+        mono: ["var(--font-mono)"],
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        sm: "var(--r-sm)",
+        DEFAULT: "var(--r)",
+        md: "var(--r)",
+        lg: "var(--r-lg)",
+        xl: "var(--r-xl)",
+      },
+      boxShadow: {
+        sm: "var(--shadow-sm)",
+        DEFAULT: "var(--shadow)",
+        lg: "var(--shadow-lg)",
+      },
+      maxWidth: {
+        content: "48rem",
       },
     },
   },
   plugins: [],
 };
+
 export default config;

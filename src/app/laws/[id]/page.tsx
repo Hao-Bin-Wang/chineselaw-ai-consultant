@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { typeLabels, statusLabels, statusColors } from "@/lib/constants";
+import { typeLabels, statusLabels, statusBadgeClass } from "@/lib/constants";
 import { ScrollToArticle } from "./scroll-to-article";
+import { FavoriteButton } from "./favorite-button";
+import { IconChevronLeft } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -22,65 +24,79 @@ export default async function LawDetailPage({
 
   if (!law) notFound();
 
-  const typeLabel = typeLabels[law.type] || law.type;
-  const statusLabel = statusLabels[law.status] || law.status;
-  const statusColor = statusColors[law.status] || "";
-
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6">
+    <div className="max-w-3xl mx-auto px-5 py-7">
       <ScrollToArticle />
 
-      {/* 返回链接 */}
-      <Link
-        href="/laws"
-        className="inline-flex items-center text-sm text-text-secondary hover:text-[var(--gold)] transition-colors mb-6"
-      >
-        ← 返回检索
+      <Link href="/laws" className="btn btn-ghost h-8 px-2 text-sm -ml-2 mb-5">
+        <IconChevronLeft size={15} />
+        返回检索
       </Link>
 
-      {/* 标题 */}
-      <h1 className="text-2xl font-display text-foreground mb-3">
-        {law.title}
-      </h1>
+      {/* 标题区 */}
+      <header className="mb-7">
+        <h1 className="text-[1.55rem] font-semibold leading-snug tracking-tight mb-3">
+          {law.title}
+        </h1>
 
-      {/* 元数据 */}
-      <div className="flex flex-wrap items-center gap-3 text-sm text-text-secondary mb-8">
-        <span className="px-2 py-0.5 rounded bg-[var(--muted)] text-xs">
-          {typeLabel}
-        </span>
-        <span className={`px-2 py-0.5 rounded bg-[var(--muted)] text-xs ${statusColor}`}>
-          {statusLabel}
-        </span>
-        {law.publisher && (
-          <span>发布机构：{law.publisher}</span>
-        )}
-        <span>条文数：{law.articles.length}</span>
-        {law.effectiveAt && (
-          <span>施行日期：{new Date(law.effectiveAt).toLocaleDateString("zh-CN")}</span>
-        )}
-      </div>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="badge badge-accent">
+            {typeLabels[law.type] || law.type}
+          </span>
+          <span className={`badge ${statusBadgeClass[law.status] ?? ""}`}>
+            {statusLabels[law.status] || law.status}
+          </span>
+          <span style={{ color: "var(--fg-tertiary)" }}>
+            共 {law.articles.length} 条
+          </span>
+          {law.publisher && (
+            <span style={{ color: "var(--fg-tertiary)" }}>
+              · {law.publisher}
+            </span>
+          )}
+          {law.effectiveAt && (
+            <span style={{ color: "var(--fg-tertiary)" }}>
+              · {new Date(law.effectiveAt).toLocaleDateString("zh-CN")} 施行
+            </span>
+          )}
+        </div>
+      </header>
 
       {/* 条文列表 */}
-      <div className="space-y-3">
+      <div className="space-y-1">
         {law.articles.map((article) => (
-          <div
+          <article
             key={article.id}
             id={`article-${article.id}`}
-            className="border-l-[3px] border-l-[var(--gold)] bg-[var(--card)] rounded-r-lg px-4 py-3 scroll-mt-20 transition-colors"
+            className="group scroll-mt-6 px-4 py-4 rounded-[var(--r-lg)]
+                       hover:bg-[var(--bg-subtle)]"
           >
-            {article.chapter && (
-              <p className="text-xs text-text-secondary mb-1">{article.chapter}</p>
+            {(article.chapter || article.section) && (
+              <p
+                className="text-[0.7rem] mb-1.5"
+                style={{ color: "var(--fg-tertiary)" }}
+              >
+                {[article.chapter, article.section].filter(Boolean).join(" · ")}
+              </p>
             )}
-            {article.section && (
-              <p className="text-xs text-text-secondary mb-1">{article.section}</p>
-            )}
-            <p className="text-sm font-display text-[var(--gold)] mb-1">
-              {article.articleNumber}
-            </p>
-            <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
-              {article.content}
-            </p>
-          </div>
+
+            <div className="flex items-start gap-3">
+              <div className="flex-1 min-w-0">
+                <p
+                  className="text-[0.82rem] font-semibold mb-1.5"
+                  style={{ color: "var(--accent)" }}
+                >
+                  {article.articleNumber}
+                </p>
+                <p className="text-[0.9rem] leading-[1.8] whitespace-pre-wrap">
+                  {article.content}
+                </p>
+              </div>
+              <div className="shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+                <FavoriteButton articleId={article.id} />
+              </div>
+            </div>
+          </article>
         ))}
       </div>
     </div>

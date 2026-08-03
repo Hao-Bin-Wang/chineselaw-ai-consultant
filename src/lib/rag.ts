@@ -1,6 +1,6 @@
 import { prisma } from "./db";
 import { embed } from "./embedding";
-import { chat } from "./llm";
+import { chat, chatStream } from "./llm";
 
 export interface Citation {
   articleId: string;
@@ -99,11 +99,11 @@ const SYSTEM_PROMPT = `你是一名专业严谨、通俗易懂的公益法律顾
 - 涉及起草法律文书的，回复："法律文书的起草需要结合具体交易结构和当事人意思表示，建议由律师定制"
 - 涉及规避法律法规的，回复："无法提供任何旨在规避法律法规的建议"`;
 
-// RAG 查询（当前未启用向量化，使用关键词匹配）
+// RAG 查询（非流式）
 export async function ragQuery(question: string): Promise<{ answer: string; citations: Citation[] }> {
   let similarArticles;
 
-  // 尝试向量化检索（如果 Embedding API 可用）
+  // 尝试向量化检索
   try {
     const questionEmbedding = await embed(question);
     if (questionEmbedding && questionEmbedding.length > 0) {
@@ -112,7 +112,6 @@ export async function ragQuery(question: string): Promise<{ answer: string; cita
       similarArticles = await searchByKeyword(question, 10);
     }
   } catch {
-    // 向量化不可用时，使用关键词匹配
     similarArticles = await searchByKeyword(question, 10);
   }
 
@@ -135,7 +134,6 @@ export async function ragQuery(question: string): Promise<{ answer: string; cita
     .map((c, i) => `${i + 1}. 《${c.legislationTitle}》${c.articleNumber}：${c.content}`)
     .join("\n\n");
 
-  // 尝试调用 LLM，失败时返回关键词匹配的兜底回答
   try {
     const answer = await chat([
       { role: "system", content: SYSTEM_PROMPT },
@@ -148,4 +146,54 @@ export async function ragQuery(question: string): Promise<{ answer: string; cita
       citations,
     };
   }
+}
+
+// RAG 查询（流式）— 先检索，后逐 token 输出
+export async function ragQueryStream(
+  question: string
+): Promise<{
+  citations: Citation[];
+  tokenStream: AsyncGenerator<string>;
+}> {
+  let similarArticles;
+
+  // 尝试向量化检索
+  try {
+    const questionEmbedding = await embed(question);
+    if (questionEmbedding && questionEmbedding.length > 0) {
+      similarArticles = await searchSimilarArticles(questionEmbedding, 10);
+    } else {
+      similarArticles = await searchByKeyword(question, 10);
+    }
+  } catch {
+    similarArticles = await searchByKeyword(question, 10);
+  }
+
+  if (similarArticles.length === 0) {
+    return {
+      citations: [],
+      tokenStream: (async function* () {
+        yield "抱歉，当前法律法规库中暂无相关内容可以回答您的问题。建议您咨询专业律师获取更准确的解答。";
+      })(),
+    };
+  }
+
+  const citations: Citation[] = similarArticles.slice(0, 5).map((a: any) => ({
+    articleId: a.id,
+    legislationId: a.legislation_id,
+    legislationTitle: a.legislation_title,
+    articleNumber: a.article_number,
+    content: a.content,
+  }));
+
+  const context = citations
+    .map((c, i) => `${i + 1}. 《${c.legislationTitle}》${c.articleNumber}：${c.content}`)
+    .join("\n\n");
+
+  const tokenStream = chatStream([
+    { role: "system", content: SYSTEM_PROMPT },
+    { role: "user", content: `【参考法条】\n${context}\n\n【用户问题】\n${question}` },
+  ]);
+
+  return { citations, tokenStream };
 }

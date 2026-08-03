@@ -13,11 +13,12 @@ export function ScrollToArticle() {
       if (hash.startsWith("#article-")) {
         const el = document.getElementById(hash.slice(1));
         if (el) {
-          el.scrollIntoView({ behavior: "smooth", block: "start" });
-          // 高亮效果
-          el.classList.add("border-l-[var(--gold)]", "ring-1", "ring-[var(--gold)]");
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          // 高亮效果：短暂着色后淡出
+          el.style.transition = "background-color 0.4s ease";
+          el.style.backgroundColor = "var(--accent-subtle)";
           setTimeout(() => {
-            el.classList.remove("ring-1", "ring-[var(--gold)]");
+            el.style.backgroundColor = "";
           }, 2000);
         }
       }

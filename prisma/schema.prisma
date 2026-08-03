@@ -15,6 +15,7 @@ model User {
   password  String
   role      String   @default("user") // user | admin
   createdAt DateTime @default(now())
+  collections Collection[]
 }
 
 model Legislation {
@@ -39,6 +40,7 @@ model Article {
   content         String
   embedding       Unsupported("vector(2048)")?
   createdAt       DateTime    @default(now())
+  collectionItems CollectionItem[]
 }
 
 model ImportTask {
@@ -58,4 +60,26 @@ model ChatHistory {
   answer    String
   citations Json?
   createdAt DateTime @default(now())
+}
+
+model Collection {
+  id        String           @id @default(uuid())
+  userId    String
+  name      String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CollectionItem[]
+  createdAt DateTime         @default(now())
+
+  @@unique([userId, name])
+}
+
+model CollectionItem {
+  id           String     @id @default(uuid())
+  collectionId String
+  articleId    String
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  article      Article    @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([collectionId, articleId])
 }

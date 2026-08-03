@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import type { Citation } from "@/lib/rag";
+import { IconSend, IconSpinner, IconScale } from "./icons";
 
 interface Message {
   role: "user" | "assistant";
@@ -18,6 +19,13 @@ interface ChatState {
 const STORAGE_KEY = "chat-messages";
 const STATE_KEY = "chat-state";
 
+const SUGGESTIONS = [
+  "劳动合同解除需要提前多久通知？",
+  "老板拖欠工资怎么办？",
+  "租房押金不退如何维权？",
+  "交通事故赔偿标准是什么？",
+];
+
 function loadMessages(): Message[] {
   if (typeof window === "undefined") return [];
   try {
@@ -31,9 +39,7 @@ function loadMessages(): Message[] {
 function saveMessages(messages: Message[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-  } catch {
-    // localStorage may be full or unavailable
-  }
+  } catch {}
 }
 
 function loadState(): ChatState | null {
@@ -49,17 +55,13 @@ function loadState(): ChatState | null {
 function saveState(state: ChatState) {
   try {
     localStorage.setItem(STATE_KEY, JSON.stringify(state));
-  } catch {
-    // localStorage may be full or unavailable
-  }
+  } catch {}
 }
 
 function clearState() {
   try {
     localStorage.removeItem(STATE_KEY);
-  } catch {
-    // ignore
-  }
+  } catch {}
 }
 
 export function ChatBox() {
@@ -67,178 +69,408 @@ export function ChatBox() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [initialized, setInitialized] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  const [pinnedToBottom, setPinnedToBottom] = useState(true);
 
-  // 恢复对话和 loading 状态
+  const endRef = useRef<HTMLDivElement>(null);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const streamRef = useRef<{ content: string; citations: Citation[] } | null>(
+    null,
+  );
+
   useEffect(() => {
     const saved = loadMessages();
-    if (saved.length > 0) {
-      setMessages(saved);
-    }
+    if (saved.length) setMessages(saved);
 
-    // 恢复 pending 状态，重新发送
-    const savedState = loadState();
-    if (savedState?.pendingQuestion) {
-      const pendingQ = savedState.pendingQuestion;
+    const st = loadState();
+    if (st?.pendingQuestion) {
+      const q = st.pendingQuestion;
       clearState();
-      // 如果最后一条消息不是 assistant 回复，重新发送
-      const lastMsg = saved[saved.length - 1];
-      if (!lastMsg || lastMsg.role === "user") {
+      const last = saved[saved.length - 1];
+      if (!last || last.role === "user") {
         setLoading(true);
-        sendRequest(pendingQ).finally(() => setLoading(false));
+        sendRequest(q).finally(() => setLoading(false));
       }
     }
-
     setInitialized(true);
   }, []);
 
-  // 持久化对话
   useEffect(() => {
-    if (initialized) {
-      saveMessages(messages);
-    }
+    if (initialized) saveMessages(messages);
   }, [messages, initialized]);
 
-  // 持久化 loading 状态（切换页面时保留）
   useEffect(() => {
-    if (initialized) {
-      if (loading) {
-        const lastMsg = messages[messages.length - 1];
-        saveState({
-          messages,
-          pendingQuestion: lastMsg?.role === "user" ? lastMsg.content : null,
-        });
-      } else {
-        clearState();
-      }
+    if (!initialized) return;
+    if (loading) {
+      const last = messages[messages.length - 1];
+      saveState({
+        messages,
+        pendingQuestion: last?.role === "user" ? last.content : null,
+      });
+    } else {
+      clearState();
     }
   }, [loading, initialized]);
 
+  // 仅在贴底时自动滚动，用户上翻后不打扰
   useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    if (pinnedToBottom) {
+      endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+  }, [messages, pinnedToBottom]);
 
-  async function sendRequest(question: string): Promise<void> {
+  function onScroll() {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setPinnedToBottom(gap < 80);
+  }
+
+  // 输入框自适应高度
+  function autosize() {
+    const ta = taRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = Math.min(ta.scrollHeight, 200) + "px";
+  }
+
+  useEffect(autosize, [input]);
+
+  async function sendRequest(question: string) {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+    streamRef.current = { content: "", citations: [] };
 
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question, stream: true }),
         signal: controller.signal,
       });
-      const json = await res.json();
-      if (json.success) {
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: json.data.answer, citations: json.data.citations },
+
+      if (!res.ok) {
+        const detail = await res.text();
+        setMessages((p) => [
+          ...p,
+          { role: "assistant", content: `请求失败：${detail}` },
         ]);
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: `错误：${json.error}` },
-        ]);
+        return;
+      }
+
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() || "";
+
+        for (const line of lines) {
+          const t = line.trim();
+          if (!t.startsWith("data: ")) continue;
+          const data = t.slice(6);
+          if (data === "[DONE]") break;
+          try {
+            const p = JSON.parse(data);
+            if (p.type === "meta") {
+              streamRef.current!.citations = p.citations || [];
+              setMessages((prev) => [
+                ...prev,
+                { role: "assistant", content: "", citations: p.citations || [] },
+              ]);
+            } else if (p.type === "token") {
+              streamRef.current!.content += p.content;
+              setMessages((prev) => {
+                const next = [...prev];
+                const last = next[next.length - 1];
+                if (last?.role === "assistant") {
+                  next[next.length - 1] = {
+                    ...last,
+                    content: streamRef.current!.content,
+                    citations: streamRef.current!.citations,
+                  };
+                }
+                return next;
+              });
+            } else if (p.type === "error") {
+              setMessages((prev) => [
+                ...prev,
+                { role: "assistant", content: `出错了：${p.message}` },
+              ]);
+            }
+          } catch {}
+        }
       }
     } catch (err: any) {
       if (err?.name === "AbortError") return;
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "网络错误，请稍后重试" },
+      setMessages((p) => [
+        ...p,
+        { role: "assistant", content: "网络连接失败，请稍后重试。" },
       ]);
     }
   }
 
-  async function send() {
-    if (!input.trim() || loading) return;
-    const question = input.trim();
+  async function send(text?: string) {
+    const question = (text ?? input).trim();
+    if (!question || loading) return;
     setInput("");
-    const userMsg: Message = { role: "user", content: question };
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages((p) => [...p, { role: "user", content: question }]);
+    setPinnedToBottom(true);
     setLoading(true);
-
     try {
       await sendRequest(question);
     } finally {
       setLoading(false);
+      streamRef.current = null;
     }
   }
 
+  const empty = messages.length === 0 && !loading;
+
   return (
-    <div className="flex flex-col h-full max-w-3xl mx-auto">
-      <div className="flex-1 p-4 overflow-y-auto">
-        {messages.length === 0 && (
-          <div className="text-center text-muted-foreground mt-20">
-            <h2 className="text-lg font-medium mb-2">⚖️ 法治智能问答</h2>
-            <p className="text-sm">输入您的法律问题，获取AI即时解答与相关法条引用</p>
+    <div className="flex flex-col h-[calc(100vh-3.5rem)] md:h-screen">
+      {/* 消息区 */}
+      <div
+        ref={scrollerRef}
+        onScroll={onScroll}
+        className="flex-1 overflow-y-auto"
+      >
+        {empty ? (
+          <div className="h-full grid place-items-center px-6">
+            <div className="w-full max-w-content animate-slide-up">
+              <div className="text-center mb-9">
+                <span
+                  className="inline-grid place-items-center w-14 h-14 rounded-2xl mb-5"
+                  style={{
+                    background: "var(--accent-subtle)",
+                    color: "var(--accent)",
+                  }}
+                >
+                  <IconScale size={28} />
+                </span>
+                <h1 className="text-[1.7rem] font-semibold tracking-tight mb-2">
+                  有什么法律问题？
+                </h1>
+                <p
+                  className="text-sm"
+                  style={{ color: "var(--fg-secondary)" }}
+                >
+                  基于现行法律法规为您解答，并附上准确的法条依据
+                </p>
+              </div>
+
+              <Composer
+                taRef={taRef}
+                input={input}
+                setInput={setInput}
+                onSend={() => send()}
+                loading={loading}
+              />
+
+              <div className="flex flex-wrap gap-2 justify-center mt-5">
+                {SUGGESTIONS.map((s) => (
+                  <button key={s} onClick={() => send(s)} className="chip">
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-        )}
-        {messages.map((msg, i) => (
-          <div key={i} className={`mb-4 ${msg.role === "user" ? "text-right" : ""}`}>
-            <div
-              className={`inline-block max-w-[80%] p-4 rounded-lg text-left ${
-                msg.role === "user"
-                  ? "bg-gold/20 text-foreground border border-gold/30"
-                  : "bg-[var(--card)] border border-[var(--border)]"
-              }`}
-            >
-              <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
-              {msg.citations && msg.citations.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  {msg.citations.map((c, j) => (
-                    <Link
-                      key={j}
-                      href={c.legislationId ? `/laws/${c.legislationId}#article-${c.articleId}` : "#"}
-                      className={`block border-l-[3px] border-l-[var(--gold)] bg-[var(--citation-bg)] rounded-r-md px-3 py-2 transition-colors ${
-                        c.legislationId ? "hover:bg-[var(--gold)]/10" : "cursor-default"
-                      }`}
-                      style={{ pointerEvents: c.legislationId ? "auto" : "none" }}
-                    >
-                      <p className="text-xs font-display text-[var(--gold)]">
-                        《{c.legislationTitle}》
-                      </p>
-                      <p className="text-xs text-text-secondary mt-0.5">
-                        {c.articleNumber}
-                      </p>
-                    </Link>
-                  ))}
+        ) : (
+          <div className="max-w-content mx-auto px-5 py-7 space-y-7">
+            {messages.map((m, i) => {
+              const streaming =
+                loading && i === messages.length - 1 && m.role === "assistant";
+              return (
+                <div key={i} className="animate-fade-in">
+                  {m.role === "user" ? (
+                    <div className="flex justify-end">
+                      <div
+                        className="max-w-[85%] px-4 py-2.5 text-[0.9rem] leading-relaxed"
+                        style={{
+                          background: "var(--accent)",
+                          color: "var(--accent-fg)",
+                          borderRadius: "var(--r-lg) var(--r-lg) 4px var(--r-lg)",
+                        }}
+                      >
+                        <p className="whitespace-pre-wrap">{m.content}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex gap-3">
+                      <span
+                        className="grid place-items-center w-7 h-7 rounded-full shrink-0 mt-0.5"
+                        style={{
+                          background: "var(--accent-subtle)",
+                          color: "var(--accent)",
+                        }}
+                      >
+                        <IconScale size={15} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        {!m.content && streaming ? (
+                          <span className="dot-typing inline-flex items-center h-7">
+                            <span />
+                            <span />
+                            <span />
+                          </span>
+                        ) : (
+                          <div
+                            className={`text-[0.9rem] leading-[1.75] whitespace-pre-wrap ${
+                              streaming ? "caret" : ""
+                            }`}
+                          >
+                            {m.content}
+                          </div>
+                        )}
+
+                        {!!m.citations?.length && (
+                          <div className="mt-4">
+                            <p
+                              className="text-xs mb-2 font-medium"
+                              style={{ color: "var(--fg-tertiary)" }}
+                            >
+                              法条依据
+                            </p>
+                            <div className="space-y-1.5">
+                              {m.citations.map((c, j) => (
+                                <Link
+                                  key={j}
+                                  href={
+                                    c.legislationId
+                                      ? `/laws/${c.legislationId}#article-${c.articleId}`
+                                      : "#"
+                                  }
+                                  className="card-interactive block px-3.5 py-2.5"
+                                  style={{
+                                    pointerEvents: c.legislationId
+                                      ? "auto"
+                                      : "none",
+                                  }}
+                                >
+                                  <p
+                                    className="text-[0.8rem] font-medium"
+                                    style={{ color: "var(--accent)" }}
+                                  >
+                                    《{c.legislationTitle}》{c.articleNumber}
+                                  </p>
+                                  {c.content && (
+                                    <p
+                                      className="text-xs mt-1 line-clamp-2 leading-relaxed"
+                                      style={{ color: "var(--fg-secondary)" }}
+                                    >
+                                      {c.content}
+                                    </p>
+                                  )}
+                                </Link>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
-        ))}
-        {loading && (
-          <div className="mb-4">
-            <div className="inline-block max-w-[80%] p-4 rounded-lg bg-[var(--card)] border border-[var(--border)]">
-              <p className="text-sm animate-pulse">正在思考...</p>
-            </div>
+              );
+            })}
+            <div ref={endRef} className="h-1" />
           </div>
         )}
-        <div ref={scrollRef} />
       </div>
-      <div className="p-4 border-t border-[var(--border)] flex gap-2 bg-[var(--background)]">
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              send();
-            }
+
+      {/* 底部输入区（有消息时） */}
+      {!empty && (
+        <div
+          className="px-5 pb-5 pt-2"
+          style={{
+            background:
+              "linear-gradient(to top, var(--bg) 60%, transparent)",
           }}
-          placeholder="输入您的法律问题，按 Enter 发送..."
-          className="flex-1 min-h-[60px] rounded-md border border-[var(--input)] bg-[var(--surface)] px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--gold)]"
-          disabled={loading}
-        />
-        <button
-          onClick={send}
-          disabled={loading || !input.trim()}
-          className="px-4 py-2 bg-[var(--gold)] text-[var(--primary-foreground)] rounded-md text-sm font-medium disabled:opacity-50 hover:brightness-110 transition-all"
         >
-          发送
+          <div className="max-w-content mx-auto">
+            <Composer
+              taRef={taRef}
+              input={input}
+              setInput={setInput}
+              onSend={() => send()}
+              loading={loading}
+            />
+            <p
+              className="text-center text-[0.7rem] mt-2.5"
+              style={{ color: "var(--fg-tertiary)" }}
+            >
+              内容由 AI 生成，仅供参考，不构成正式法律意见
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------- 输入框 ---------- */
+
+function Composer({
+  taRef,
+  input,
+  setInput,
+  onSend,
+  loading,
+}: {
+  taRef: React.RefObject<HTMLTextAreaElement>;
+  input: string;
+  setInput: (v: string) => void;
+  onSend: () => void;
+  loading: boolean;
+}) {
+  return (
+    <div
+      className="relative"
+      style={{
+        background: "var(--card)",
+        border: "1px solid var(--border-strong)",
+        borderRadius: "var(--r-xl)",
+        boxShadow: "var(--shadow)",
+      }}
+    >
+      <textarea
+        ref={taRef}
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            onSend();
+          }
+        }}
+        rows={1}
+        placeholder="输入您的法律问题…"
+        disabled={loading}
+        className="w-full bg-transparent resize-none px-4 pt-3.5 pb-12 text-[0.9rem]
+                   leading-relaxed focus:outline-none scrollbar-none"
+        style={{ color: "var(--fg)", minHeight: "3.4rem" }}
+      />
+
+      <div className="absolute right-2.5 bottom-2.5 flex items-center gap-2">
+        <span
+          className="hidden sm:block text-[0.7rem]"
+          style={{ color: "var(--fg-tertiary)" }}
+        >
+          Enter 发送 / Shift+Enter 换行
+        </span>
+        <button
+          onClick={onSend}
+          disabled={loading || !input.trim()}
+          aria-label="发送"
+          className="btn btn-primary w-8 h-8 p-0 !rounded-full"
+        >
+          {loading ? <IconSpinner size={15} /> : <IconSend size={16} />}
         </button>
       </div>
     </div>

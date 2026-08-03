@@ -23,3 +23,17 @@ export async function GET() {
 
   return NextResponse.json({ success: true, data: conversations });
 }
+
+/** 清空所有历史对话 */
+export async function DELETE() {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ success: false, error: "未登录" }, { status: 401 });
+  }
+
+  await prisma.chatHistory.deleteMany({
+    where: { userId: session.userId },
+  });
+
+  return NextResponse.json({ success: true });
+}

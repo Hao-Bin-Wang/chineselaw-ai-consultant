@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { IconUpload, IconSpinner } from "@/components/icons";
 
 interface ImportTask {
   id: string;
@@ -16,8 +17,13 @@ const statusLabels: Record<string, string> = {
   parsing: "解析中",
   chunking: "拆分中",
   embedding: "向量化中",
-  done: "完成",
+  done: "已完成",
   failed: "失败",
+};
+
+const statusBadge: Record<string, string> = {
+  done: "badge-success",
+  failed: "badge-danger",
 };
 
 export default function AdminPage() {
@@ -48,7 +54,10 @@ export default function AdminPage() {
     formData.append("type", type);
 
     try {
-      const res = await fetch("/api/admin/import", { method: "POST", body: formData });
+      const res = await fetch("/api/admin/import", {
+        method: "POST",
+        body: formData,
+      });
       const json = await res.json();
       if (json.success) {
         setFile(null);
@@ -65,84 +74,166 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6">
-      <h1 className="text-xl font-display text-foreground mb-6">知识库管理</h1>
+    <div className="max-w-3xl mx-auto px-5 py-7">
+      <header className="mb-6">
+        <h1 className="text-xl font-semibold tracking-tight">知识库管理</h1>
+        <p className="text-sm mt-0.5" style={{ color: "var(--fg-secondary)" }}>
+          导入法律法规文件，系统将自动拆分条文并生成向量索引
+        </p>
+      </header>
 
-      <div className="p-6 mb-6 rounded-xl border border-[var(--border)] bg-[var(--card)]">
-        <h2 className="font-medium mb-4 text-foreground">导入法律法规</h2>
+      {/* 上传表单 */}
+      <section className="card p-5 mb-5">
+        <h2 className="text-sm font-semibold mb-4">导入新法规</h2>
+
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1">法规名称</label>
+          <Field label="法规名称">
             <input
-              placeholder="如：中华人民共和国劳动合同法"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full h-10 rounded-md border border-[var(--input)] bg-[var(--surface)] px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[var(--gold)]"
+              placeholder="如：中华人民共和国劳动合同法"
+              className="field"
             />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1">法规类型</label>
+          </Field>
+
+          <Field label="法规类型">
             <select
               value={type}
               onChange={(e) => setType(e.target.value)}
-              className="w-full h-10 rounded-md border border-[var(--input)] bg-[var(--surface)] px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[var(--gold)]"
+              className="field"
             >
               <option value="law">法律</option>
               <option value="regulation">行政法规</option>
               <option value="judicial_interpretation">司法解释</option>
               <option value="rule">部门规章</option>
             </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1">选择文件（PDF / Word / JSON）</label>
-            <input
-              type="file"
-              accept=".pdf,.docx,.doc,.json"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
-              className="w-full text-sm text-foreground"
-            />
-          </div>
+          </Field>
+
+          <Field label="文件（PDF / Word / JSON）">
+            <label
+              className="flex items-center gap-2.5 px-3.5 py-3 cursor-pointer"
+              style={{
+                border: "1px dashed var(--border-strong)",
+                borderRadius: "var(--r)",
+                background: "var(--bg-subtle)",
+              }}
+            >
+              <span style={{ color: "var(--fg-tertiary)" }}>
+                <IconUpload size={17} />
+              </span>
+              <span
+                className="text-sm truncate"
+                style={{
+                  color: file ? "var(--fg)" : "var(--fg-tertiary)",
+                }}
+              >
+                {file ? file.name : "点击选择文件"}
+              </span>
+              <input
+                type="file"
+                accept=".pdf,.docx,.doc,.json"
+                onChange={(e) => setFile(e.target.files?.[0] || null)}
+                className="hidden"
+              />
+            </label>
+          </Field>
+
           <button
             onClick={upload}
             disabled={!file || !title.trim() || uploading}
-            className="px-4 py-2 bg-[var(--gold)] text-[var(--primary-foreground)] rounded-md text-sm font-medium disabled:opacity-50 hover:brightness-110 transition-all"
+            className="btn btn-primary h-9 px-4 text-sm"
           >
-            {uploading ? "上传中..." : "开始导入"}
+            {uploading ? (
+              <>
+                <IconSpinner size={14} />
+                上传中…
+              </>
+            ) : (
+              "开始导入"
+            )}
           </button>
         </div>
-      </div>
+      </section>
 
-      <div className="p-6 rounded-xl border border-[var(--border)] bg-[var(--card)]">
-        <h2 className="font-medium mb-4 text-foreground">导入任务</h2>
+      {/* 任务列表 */}
+      <section className="card p-5">
+        <h2 className="text-sm font-semibold mb-4">导入任务</h2>
+
         {tasks.length === 0 ? (
-          <p className="text-sm text-text-secondary">暂无导入任务</p>
+          <p
+            className="text-sm text-center py-6"
+            style={{ color: "var(--fg-tertiary)" }}
+          >
+            暂无导入任务
+          </p>
         ) : (
-          tasks.map((task) => (
-            <div key={task.id} className="flex items-center justify-between py-3 border-b border-[var(--border)] last:border-0">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">{task.fileName}</p>
-                <p className="text-xs text-text-secondary">
-                  {statusLabels[task.status] || task.status}
-                  {task.error && <span className="text-red-500 ml-2">错误：{task.error}</span>}
-                </p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0 ml-4">
-                {task.status !== "done" && task.status !== "failed" && (
-                  <div className="w-24 bg-[var(--muted)] rounded-full h-2">
-                    <div
-                      className="bg-[var(--gold)] h-2 rounded-full transition-all"
-                      style={{ width: `${task.progress}%` }}
-                    />
+          <div className="space-y-3">
+            {tasks.map((task) => {
+              const running =
+                task.status !== "done" && task.status !== "failed";
+              return (
+                <div key={task.id}>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm truncate">{task.fileName}</p>
+                      {task.error && (
+                        <p
+                          className="text-xs mt-0.5 line-clamp-1"
+                          style={{ color: "var(--danger)" }}
+                        >
+                          {task.error}
+                        </p>
+                      )}
+                    </div>
+                    <span className={`badge shrink-0 ${statusBadge[task.status] ?? ""}`}>
+                      {statusLabels[task.status] || task.status}
+                      {running && ` ${task.progress}%`}
+                    </span>
                   </div>
-                )}
-                <span className="text-xs text-text-secondary w-8 text-right">
-                  {task.status === "done" ? "✅" : task.status === "failed" ? "❌" : `${task.progress}%`}
-                </span>
-              </div>
-            </div>
-          ))
+
+                  {running && (
+                    <div
+                      className="h-1 mt-2 overflow-hidden"
+                      style={{
+                        background: "var(--bg-subtle)",
+                        borderRadius: "2px",
+                      }}
+                    >
+                      <div
+                        className="h-full transition-all duration-500"
+                        style={{
+                          width: `${task.progress}%`,
+                          background: "var(--accent)",
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
-      </div>
+      </section>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label
+        className="block text-xs font-medium mb-1.5"
+        style={{ color: "var(--fg-secondary)" }}
+      >
+        {label}
+      </label>
+      {children}
     </div>
   );
 }
